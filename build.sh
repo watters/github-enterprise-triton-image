@@ -1,13 +1,26 @@
 #!/usr/bin/env bash
 
-set -x
+# set -x
 
+PREREQ_FAILED=
 ensure() {
-    hash $1 2>/dev/null || echo >&2 "$1 is required, but not installed. $2 Aborting."; exit 1;
+    echo -ne "checking for ${1}... "
+    if hash $1 2>/dev/null; then
+        echo "FOUND"
+    else
+        PREREQ_FAILED=1 echo "NOT FOUND"
+    fi
 }
 
 ensure curl
 ensure sdc-imgadm
+ensure vmadm # depended on by scripts in image-converter submodule
+
+if $PREREQ_FAILED; then
+    echo >&2 "Prerequisite check failed. Aborting"; exit 1;
+fi
+
+exit 0;
 
 GITHUB_VERSION=2.10.3
 GITHUB_IMAGE_NAME="github-enterprise-${GITHUB_VERSION}"
