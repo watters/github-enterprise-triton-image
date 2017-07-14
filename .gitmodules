@@ -1,0 +1,3 @@
+[submodule "image-converter"]
+	path = image-converter
+	url = git@github.com:watters/image-converter.git
