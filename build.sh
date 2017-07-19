@@ -1,17 +1,35 @@
 #!/usr/bin/env bash
 
+##########################
+
+VERSION=2.10.3
+IMAGE_NAME="github-enterprise-${VERSION}"
+SOURCE_IMAGE_FILENAME="${IMAGE_NAME}.qcow2"
+DOWNLOAD_URI="https://github-enterprise.s3.amazonaws.com/kvm/releases/${SOURCE_IMAGE_FILENAME}"
+
+##########################
+
 set -x
 
-date
+START_DATE=`date -u +"%Y%m%dT%H%M%SZ"`
+PWD=`pwd`
+log() {
+    NOW=`date -u +"%Y%m%dT%H%M%SZ"`
+    MSG="${NOW} ${1}"
+    echo $MSG >> ${PWD}/build-${START_DATE}.log
+    if [ ! $2 == "no" ]; then
+        echo $MSG
+    fi
+}
 
 PREREQ_FAILED="0"
 ensure() {
-    echo -ne "checking for ${1}... "
+    PREFIX="checking for ${1}..."
     if hash $1 2>/dev/null; then
-        echo "FOUND"
+        log "${PREFIX} FOUND"
     else
         PREREQ_FAILED="1"
-        echo "NOT FOUND"
+        log "${PREFIX} NOT FOUND"
     fi
 }
 
@@ -20,35 +38,43 @@ ensure sdc-imgadm
 ensure vmadm # depended on by scripts in image-converter submodule
 
 if [ "$PREREQ_FAILED" == "1" ]; then
+    log "Prerequisite check failed. Aborting" no;
     echo >&2 "Prerequisite check failed. Aborting"; exit 1;
 fi
 
-GITHUB_VERSION=2.10.3
-GITHUB_IMAGE_NAME="github-enterprise-${GITHUB_VERSION}"
-GITHUB_IMAGE_FILENAME="${GITHUB_IMAGE_NAME}.qcow2"
-GITHUB_DOWNLOAD_URI="https://github-enterprise.s3.amazonaws.com/kvm/releases/${GITHUB_IMAGE_FILENAME}"
+log "Downloading image ${DOWNLOAD_URI}..."
 
-echo "Downloading image..."; date
+curl --insecure --retry 2 -O $DOWNLOAD_URI
 
-curl --insecure --retry 2 -O $GITHUB_DOWNLOAD_URI
+read -n 1 -s -r -p "Press any key to convert image"
 
-echo "Converting image..."; date
+log "Converting source image ${SOURCE_IMAGE_FILENAME} to ${IMAGE_NAME}..."
 
 pushd image-converter
-./convert-image -i "../${GITHUB_IMAGE_FILENAME}" -n $GITHUB_IMAGE_NAME -o linux
+
+# remove any existing manifests and converted images
+rm -f ./*.json
+rm -f ./*.gz
+
+./convert-image -i "../${SOURCE_IMAGE_FILENAME}" -n $IMAGE_NAME -o linux
+
+MANIFEST_FILENAME=`ls -1 *.json | head -n 1`
+IMAGE_FILENAME=`ls -1 *.gz | head -n 1`
 
 # TODO: It might be nice to improve image-converter to take a
 # desitination path here
 
-mv *.json ..
-mv *.gz ..
+mv ./*.json ..
+mv ./*.gz ..
 
 popd
 
 # sdc-imgadm import -m ./github-enterprise-2.10.2-2017071022.json -f ./github-enterprise-2.10.2-2017071022.zfs.gz
 
-echo "Importing image..."; date
+read -n 1 -s -r -p "Press any key to import image"
 
-sdc-imgadm import -m ./${MANIFEST} -f ./${IMAGE_FILE}
+log "Importing image ${IMAGE_FILENAME} with manifest ${MANIFEST_FILENAME}"
 
-echo "Finished!"; date
+sdc-imgadm import -m ./${MANIFEST_FILENAME} -f ./${IMAGE_FILENAME}
+
+log "Finished!"
