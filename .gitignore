@@ -1,2 +1,4 @@
 *.ghl
 *.qcow2
+*.log
+*.zfs.gz
