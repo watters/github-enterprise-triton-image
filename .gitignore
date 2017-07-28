@@ -2,3 +2,5 @@
 *.qcow2
 *.log
 *.zfs.gz
+.DS_Store
+github-enterprise-*.json
